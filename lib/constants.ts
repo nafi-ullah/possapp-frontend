@@ -1,3 +1,3 @@
 // constants.ts
 export const BackendBaseUrl =
-  process.env.NEXT_PUBLIC_BACKEND_BASE_URL ?? "http://localhost:5082";
+  process.env.NEXT_PUBLIC_BACKEND_BASE_URL ?? "http://15.207.114.87:5082";
