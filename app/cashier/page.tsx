@@ -143,7 +143,7 @@ export default function CashierDashboard() {
               ) : (
                 <ScrollArea className="h-[55vh] rounded-md">
                   <Table>
-                    <TableCaption>Auto-refreshes every 10 seconds</TableCaption>
+                   
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-24">Barcode</TableHead>
