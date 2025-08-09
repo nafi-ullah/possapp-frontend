@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../lib/api";
 import type { Batch, CheckoutPayload } from "../../lib/types";
@@ -32,6 +32,7 @@ interface Product {
 
 export default function CashierDashboard() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [batch, setBatch] = useState<Batch | null>(null);
   const [batchId, setBatchId] = useState<number | null>(null); // stored for reuse
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,7 @@ export default function CashierDashboard() {
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemUnitPrice, setItemUnitPrice] = useState<number>(0);
   const [addingItem, setAddingItem] = useState(false);
+  const [barcodeCopied, setBarcodeCopied] = useState(false);
 
   // checkout state
   const [givenAmount, setGivenAmount] = useState<number>(0);
@@ -102,9 +104,15 @@ export default function CashierDashboard() {
   }, []);
 
   useEffect(() => {
-    fetchOrCreateBatch();
-    fetchProducts();
-  }, [fetchOrCreateBatch, fetchProducts]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      fetchOrCreateBatch();
+      fetchProducts();
+    }
+  }, [mounted, fetchOrCreateBatch, fetchProducts]);
 
   // poll every 10s for latest data
   useEffect(() => {
@@ -184,6 +192,23 @@ export default function CashierDashboard() {
     }
   };
 
+  // Prevent hydration issues by not rendering until mounted
+  if (!mounted) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-4 md:p-6">
+        <div className="mx-auto max-w-7xl space-y-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl md:text-3xl font-semibold">Cashier</h1>
+          </div>
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-4">
@@ -214,40 +239,60 @@ export default function CashierDashboard() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="md:col-span-2">
-                  <Label>Select Product</Label>
-                  <Select 
-                    value={selectedProduct?.barcode || ""} 
-                    onValueChange={(barcode) => {
-                      const product = products.find(p => p.barcode === barcode);
-                      setSelectedProduct(product || null);
-                      if (product) {
-                        setItemUnitPrice(product.sellPrice);
-                        setItemQuantity(1); // Reset quantity when product changes
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={products.length > 0 ? "Choose a product..." : "Loading products..."} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.length > 0 ? (
-                        products.map((product) => (
-                          <SelectItem key={product.id} value={product.barcode}>
-                            {product.barcode} - {product.name} (${product.sellPrice})
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="" disabled>
-                          No products available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Label>Select Product</Label>
+                      <Select 
+                        key={`product-select-${mounted}`}
+                        value={selectedProduct?.barcode || undefined} 
+                        onValueChange={(barcode) => {
+                          const product = products.find(p => p.barcode === barcode);
+                          setSelectedProduct(product || null);
+                          if (product) {
+                            setItemUnitPrice(product.sellPrice);
+                            setItemQuantity(1); // Reset quantity when product changes
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={products.length > 0 ? "Choose a product..." : "Loading products..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.length > 0 ? (
+                            products.map((product) => (
+                              <SelectItem key={product.id} value={product.barcode}>
+                                {product.barcode} - {product.name} (${product.sellPrice})
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-products" disabled>
+                              No products available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedProduct && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedProduct(null);
+                          setItemUnitPrice(0);
+                          setItemQuantity(1);
+                        }}
+                        className="mt-6"
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
                 <div>
                   <Label>Quantity</Label>
                   <Input
+                    key={`quantity-input-${mounted}`}
                     type="number"
                     min="1"
                     value={itemQuantity}
@@ -259,6 +304,7 @@ export default function CashierDashboard() {
                 <div>
                   <Label>Unit Price</Label>
                   <Input
+                    key={`price-input-${mounted}`}
                     type="number"
                     min="0"
                     step="0.01"
@@ -277,6 +323,26 @@ export default function CashierDashboard() {
                 >
                   <Plus className="h-4 w-4" />
                   {addingItem ? "Adding..." : "Add Item"}
+                </Button>
+
+                <Button 
+                  onClick={() => {
+                    if (selectedProduct) {
+                      const barcodeString = `${selectedProduct.barcode},${itemQuantity},${itemUnitPrice}`;
+                      navigator.clipboard.writeText(barcodeString).then(() => {
+                        setBarcodeCopied(true);
+                        setTimeout(() => setBarcodeCopied(false), 2000);
+                      }).catch(() => {
+                        // Fallback: show alert if clipboard API fails
+                        alert(`Barcode string: ${barcodeString}`);
+                      });
+                    }
+                  }}
+                  disabled={!selectedProduct || itemQuantity <= 0 || itemUnitPrice <= 0}
+                  variant={barcodeCopied ? "default" : "outline"}
+                  className={`flex items-center gap-2 ${barcodeCopied ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                >
+                  {barcodeCopied ? "✅ Copied!" : "📊 Generate Barcode"}
                 </Button>
                 
                 {selectedProduct && (
@@ -402,17 +468,17 @@ export default function CashierDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Payment Method</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select method" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Cash">Cash</SelectItem>
-                        <SelectItem value="Card">Card</SelectItem>
-                        <SelectItem value="Mobile">Mobile</SelectItem>
-                        <SelectItem value="None">None</SelectItem>
-                      </SelectContent>
-                    </Select>
+                                      <Select key={`payment-select-${mounted}`} value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="Card">Card</SelectItem>
+                      <SelectItem value="Mobile">Mobile</SelectItem>
+                      <SelectItem value="None">None</SelectItem>
+                    </SelectContent>
+                  </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Discount Amount</Label>
