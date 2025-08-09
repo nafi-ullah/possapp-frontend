@@ -17,6 +17,18 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Package } from "lucide-react";
+
+interface Product {
+  id: number;
+  barcode: string;
+  name: string;
+  unit: string;
+  sellPrice: number;
+  stockQty: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function CashierDashboard() {
   const router = useRouter();
@@ -25,12 +37,31 @@ export default function CashierDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // products state
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [itemQuantity, setItemQuantity] = useState<number>(1);
+  const [itemUnitPrice, setItemUnitPrice] = useState<number>(0);
+  const [addingItem, setAddingItem] = useState(false);
+
   // checkout state
   const [givenAmount, setGivenAmount] = useState<number>(0);
   const [returnedAmount, setReturnedAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "http://15.207.114.87:5082"}/api/Products`);
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data);
+      }
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  }, []);
 
   const fetchOrCreateBatch = useCallback(async () => {
     setError(null);
@@ -72,7 +103,8 @@ export default function CashierDashboard() {
 
   useEffect(() => {
     fetchOrCreateBatch();
-  }, [fetchOrCreateBatch]);
+    fetchProducts();
+  }, [fetchOrCreateBatch, fetchProducts]);
 
   // poll every 10s for latest data
   useEffect(() => {
@@ -94,6 +126,42 @@ export default function CashierDashboard() {
     const returned = Math.max(0, (givenAmount || 0) - payable);
     return { subtotal, totalDiscount, payable, returned };
   }, [batch, discountAmount, discountPercent, givenAmount]);
+
+  const handleAddItem = async () => {
+    if (!selectedProduct || !batchId || itemQuantity <= 0 || itemUnitPrice <= 0) return;
+    
+    setAddingItem(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "http://15.207.114.87:5082"}/api/Batches/${batchId}/items`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          barcode: selectedProduct.barcode,
+          qty: itemQuantity,
+          unitPrice: itemUnitPrice
+        }),
+      });
+      
+      if (response.ok) {
+        // Reset form
+        setSelectedProduct(null);
+        setItemQuantity(1);
+        setItemUnitPrice(0);
+        
+        // Refresh batch data
+        const detail = await api<Batch>(`/api/Batches/${batchId}`);
+        setBatch(detail);
+      } else {
+        setError("Failed to add item to batch");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to add item");
+    } finally {
+      setAddingItem(false);
+    }
+  };
 
   const handleCheckout = async () => {
     if (!batchId) return;
@@ -132,6 +200,102 @@ export default function CashierDashboard() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+          {/* Add Item Form */}
+          <Card className="lg:col-span-2 border-0 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Add Item to Batch
+              </CardTitle>
+              <Button onClick={fetchProducts} variant="outline" size="sm">
+                Refresh Products
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="md:col-span-2">
+                  <Label>Select Product</Label>
+                  <Select 
+                    value={selectedProduct?.barcode || ""} 
+                    onValueChange={(barcode) => {
+                      const product = products.find(p => p.barcode === barcode);
+                      setSelectedProduct(product || null);
+                      if (product) {
+                        setItemUnitPrice(product.sellPrice);
+                        setItemQuantity(1); // Reset quantity when product changes
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={products.length > 0 ? "Choose a product..." : "Loading products..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.length > 0 ? (
+                        products.map((product) => (
+                          <SelectItem key={product.id} value={product.barcode}>
+                            {product.barcode} - {product.name} (${product.sellPrice})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="" disabled>
+                          No products available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label>Quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={itemQuantity}
+                    onChange={(e) => setItemQuantity(Number(e.target.value))}
+                    placeholder="1"
+                  />
+                </div>
+                
+                <div>
+                  <Label>Unit Price</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={itemUnitPrice}
+                    onChange={(e) => setItemUnitPrice(Number(e.target.value))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={handleAddItem} 
+                  disabled={!selectedProduct || itemQuantity <= 0 || itemUnitPrice <= 0 || addingItem}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  {addingItem ? "Adding..." : "Add Item"}
+                </Button>
+                
+                {selectedProduct && (
+                  <div className="text-sm text-gray-600">
+                    Stock: <Badge variant="outline">{selectedProduct.stockQty}</Badge>
+                    {selectedProduct.stockQty <= 10 && (
+                      <Badge variant="destructive" className="ml-2">Low Stock</Badge>
+                    )}
+                    <span className="ml-3">
+                      Line Total: <Badge variant="secondary">${(itemQuantity * itemUnitPrice).toFixed(2)}</Badge>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Separator className="lg:col-span-2" />
+
           {/* Items table */}
           <Card className="lg:col-span-2 border-0 shadow-lg">
             <CardHeader>
