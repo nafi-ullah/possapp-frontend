@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Admin more features:
 
-## Getting Started
+endpoint:
+Post: api/Users
+reqbody:
+{
+  "username": "string",
+  "password": "string",
+  "role": "string"
+}
 
-First, run the development server:
+Product managements:
+Get: /api/Products
+response:
+[
+  {
+    "id": 11,
+    "barcode": "QR000010",
+    "name": "Amul Butter",
+    "unit": "500g",
+    "sellPrice": 250,
+    "stockQty": 18,
+    "rowVersion": null,
+    "createdAt": "2025-08-08T14:59:29.308628",
+    "updatedAt": "2025-08-08T14:59:29.308628"
+  }
+]
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Post: /api/Products
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+{
+  "barcode": "string",
+  "name": "string",
+  "unit": "string",
+  "sellPrice": 0,
+  "stockQty": 0
+}
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Put: /api/Products/{id}
+{
+  "name": "string",
+  "unit": "string",
+  "sellPrice": 0,
+  "stockQty": 0
+}
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Delete: /api/Products/{id}
 
-## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+Sales information
+Get: api/Batches
+response:
+[
+  {
+    "id": 3,
+    "batchCode": "fwwDwVVEqyDp",
+    "customerId": "ASbbJeS9t0W6",
+    "status": "Created",
+    "subtotal": 0,
+    "discountAmount": 0,
+    "discountPercent": 0,
+    "payable": 0,
+    "givenAmount": 0,
+    "paymentMethod": "None",
+    "returnedAmount": 0,
+    "productId": null,
+    "productName": null,
+    "items": []
+  },
+  {
+    "id": 2,
+    "batchCode": "vyQ3XkOgckSW",
+    "customerId": "mUhv30GmoEyX",
+    "status": "Paid",
+    "subtotal": 980,
+    "discountAmount": 0,
+    "discountPercent": 0,
+    "payable": 980,
+    "givenAmount": 0,
+    "paymentMethod": "None",
+    "returnedAmount": 0,
+    "productId": 4,
+    "productName": "Dettol Handwash",
+    "items": [
+      {
+        "id": 2,
+        "barcode": "123",
+        "productName": "Dove",
+        "qty": 3,
+        "unitPrice": 70,
+        "lineTotal": 210
+      },
+      {
+        "id": 3,
+        "barcode": "QR000001",
+        "productName": "Dove Soap",
+        "qty": 6,
+        "unitPrice": 75,
+        "lineTotal": 450
+      },
+      {
+        "id": 4,
+        "barcode": "QR000003",
+        "productName": "Dettol Handwash",
+        "qty": 4,
+        "unitPrice": 80,
+        "lineTotal": 320
+      }
+    ]
+  }
+  ]
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+PUT: api/Batches/{id}/status
+{
+  "status": "string",
+  "givenAmount": 0,
+  "paymentMethod": "string",
+  "discountAmount": 0,
+  "discountPercent": 0,
+  "returnedAmount": 0
+}
